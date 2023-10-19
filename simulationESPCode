@@ -7,8 +7,8 @@
 
 const char* wifiName = "Wokwi-GUEST";
 const char* wifiPass = "";
-const int myChannelNumber = 2311542;
-const char* myApiKey = "FG87QBGM29ET4GFY";
+const int myChannelNumber = 0000000000;
+const char* myApiKey = "MYKEY";
 const char* server = "api.thingspeak.com";
 WiFiClient client;
 
