@@ -1,0 +1,219 @@
+#include <LiquidCrystal.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+#include <WiFi.h>
+#include "ThingSpeak.h"
+
+const char* wifiName = "Wokwi-GUEST";
+const char* wifiPass = "";
+const int myChannelNumber = 2311542;
+const char* myApiKey = "FG87QBGM29ET4GFY";
+const char* server = "api.thingspeak.com";
+WiFiClient client;
+
+Adafruit_MPU6050 mpu;
+
+LiquidCrystal lcd(4, 15, 5, 18, 19, 23);
+
+const int buzzerPin = 12;  
+const int minFreq = 100;  // in Hz
+const int maxFreq = 2000; // in Hz
+const float maxTilt = 41.81; // maximum possible tilt in either direction in degrees
+
+void setup() {
+
+  Serial.begin(115200);
+
+  pinMode(buzzerPin, OUTPUT);
+
+  lcd.begin(20, 4);
+
+  // Attempt to connect to Wi-Fi network:
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print("Attempting to connect to SSID: ");
+    Serial.println(wifiName);
+    // Connect to WPA/WPA2 network:
+    WiFi.begin(wifiName, wifiPass);
+    delay(10000);  // Wait 10 seconds to connect
+  }
+
+  // Print Wi-Fi connection details:
+  Serial.println("Connected to wifi");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+  
+  // Initialize ThingSpeak
+  ThingSpeak.begin(client);
+
+  Serial.println("Adafruit MPU6050 test!");
+
+  // Try to initialize!
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("MPU6050 Found!");
+  Serial.println(" ");
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  Serial.print("Accelerometer range set to: ");
+  switch (mpu.getAccelerometerRange()) {
+  case MPU6050_RANGE_2_G:
+    Serial.println("+-2G");
+    break;
+  case MPU6050_RANGE_4_G:
+    Serial.println("+-4G");
+    break;
+  case MPU6050_RANGE_8_G:
+    Serial.println("+-8G");
+    break;
+  case MPU6050_RANGE_16_G:
+    Serial.println("+-16G");
+    break;
+  }
+  mpu.setGyroRange(MPU6050_RANGE_2000_DEG);
+  Serial.print("Gyro range set to: ");
+  switch (mpu.getGyroRange()) {
+  case MPU6050_RANGE_250_DEG:
+    Serial.println("+- 250 deg/s");
+    break;
+  case MPU6050_RANGE_500_DEG:
+    Serial.println("+- 500 deg/s");
+    break;
+  case MPU6050_RANGE_1000_DEG:
+    Serial.println("+- 1000 deg/s");
+    break;
+  case MPU6050_RANGE_2000_DEG:
+    Serial.println("+- 2000 deg/s");
+    break;
+  }
+
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  Serial.print("Filter bandwidth set to: ");
+  switch (mpu.getFilterBandwidth()) {
+  case MPU6050_BAND_260_HZ:
+    Serial.println("260 Hz");
+    break;
+  case MPU6050_BAND_184_HZ:
+    Serial.println("184 Hz");
+    break;
+  case MPU6050_BAND_94_HZ:
+    Serial.println("94 Hz");
+    break;
+  case MPU6050_BAND_44_HZ:
+    Serial.println("44 Hz");
+    break;
+  case MPU6050_BAND_21_HZ:
+    Serial.println("21 Hz");
+    break;
+  case MPU6050_BAND_10_HZ:
+    Serial.println("10 Hz");
+    break;
+  case MPU6050_BAND_5_HZ:
+    Serial.println("5 Hz");
+    break;
+  }
+
+  Serial.println("");
+  delay(100);
+}
+
+void loop() {
+  
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  ThingSpeak.setField(1, a.acceleration.x);
+  ThingSpeak.setField(2, a.acceleration.y);
+  ThingSpeak.setField(3, g.gyro.x);
+  ThingSpeak.setField(4, g.gyro.y);
+  ThingSpeak.setField(5, g.gyro.z);
+
+  /* Print out the temperature value */
+  Serial.print("Temperature: ");
+  Serial.print(temp.temperature);
+  Serial.println(" degC");
+
+  Serial.println("");
+
+
+
+  float tiltAngleX = atan2(a.acceleration.x, sqrt(a.acceleration.y * a.acceleration.y + a.acceleration.z * a.acceleration.z)) * 180 / M_PI;
+  float tiltAngleY = atan2(a.acceleration.y, sqrt(a.acceleration.x * a.acceleration.x + a.acceleration.z * a.acceleration.z)) * 180 / M_PI;
+
+  const float tiltThreshold = 0.1;
+  const int gyroThreshold = 3.49;
+
+  float totalTilt = sqrt(tiltAngleX * tiltAngleX + tiltAngleY * tiltAngleY);
+
+  // Map the total tilt to the frequency range
+  int frequency = map(totalTilt, 0, maxTilt, minFreq, maxFreq);
+
+  lcd.clear();  // Clear the display
+
+  // Check tilt based on X-axis
+  if (a.acceleration.x > tiltThreshold) {
+    lcd.setCursor(0, 0);
+    lcd.print("TILTED RIGHT    ");
+  } else if (a.acceleration.x < -tiltThreshold) {
+    lcd.setCursor(0, 0);
+    lcd.print("TILTED LEFT     ");
+  } else {
+    lcd.setCursor(0, 0);
+    lcd.print("Stable - X AXIS");
+  }
+
+  // Display tilt angles for X axis
+  lcd.setCursor(0, 1);
+  lcd.print("X: ");
+  lcd.print(tiltAngleX);
+  lcd.print(" DEGREES  ");
+
+  // Check tilt based on Y-axis
+  if (a.acceleration.y > tiltThreshold) {
+    lcd.setCursor(0, 2);
+    lcd.print("TILTED BACKWARD ");
+  } else if (a.acceleration.y < -tiltThreshold) {
+    lcd.setCursor(0, 2);
+    lcd.print("TILTED FORWARD  ");
+  } else {
+    lcd.setCursor(0, 2);
+    lcd.print("Stable - Y AXIS");
+  }
+
+  // Display tilt angles for Y axis
+  lcd.setCursor(0, 3);
+  lcd.print("Y: ");
+  lcd.print(tiltAngleY);
+  lcd.print(" DEGREES  ");
+
+  // Check for rapid rotation using gyroscope
+    if(abs(g.gyro.x) > gyroThreshold || abs(g.gyro.y) > gyroThreshold || abs(g.gyro.z) > gyroThreshold) {
+        // Rapid rotation detected!
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("GYRO DETECTED: ");
+        lcd.setCursor(0,1);
+        lcd.print("Rapid rotation!");
+
+        // Beep the buzzer three times quickly
+        for (int i = 0; i < 5; i++) {
+            tone(buzzerPin, 1000);  // 1000 Hz tone
+            delay(100);  // tone duration
+            noTone(buzzerPin);  // stop the tone
+            delay(100);  // pause between beeps
+        }
+    }
+
+  ThingSpeak.writeFields(myChannelNumber, myApiKey);
+
+  // Play the tone on the buzzer
+  tone(buzzerPin, frequency);
+  delay(1000);
+  noTone(buzzerPin);
+
+  delay(1000);
+}
