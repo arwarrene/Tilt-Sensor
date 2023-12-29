@@ -1,0 +1,68 @@
+#include <WiFiS3.h>
+#include <Wire.h>
+#include "ThingSpeak.h"
+#include <LiquidCrystal_I2C.h>
+
+const char* ssid     = "EnclaveApts-3820-101A"; // WiFi network name
+const char* password = "pant140sleepy"; // WiFi password
+
+unsigned long myChannelNumber = 2334869;  // ThingSpeak channel number
+const char* myApiKey = "QHRW5K3SCNC5YZDZ";  // ThingSpeak channel write API key
+
+WiFiClient client;
+
+const int buzzerPin = 10;  
+const int tiltSensorPin = 9;
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+
+  Serial.begin(9600);
+
+  lcd.init();  // Initialize the LCD
+  lcd.backlight(); // Turn on the backlight
+  
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(tiltSensorPin, INPUT_PULLUP); // Use internal pull-up resistor
+
+      //Attempt to connect to Wi-Fi network:
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print("Attempting to connect to SSID: ");
+    Serial.println(ssid);
+    WiFi.begin(ssid, password);
+}
+
+  //Print Wi-Fi connection details:
+  Serial.println("Connected to wifi");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+  
+  //Initialize ThingSpeak
+  ThingSpeak.begin(client);
+
+void loop() {
+  int tiltState = digitalRead(tiltSensorPin);
+  ThingSpeak.writeField(myChannelNumber, 1, tiltState, myApiKey);  // Send tiltState to ThingSpeak field 1
+  
+  // Print the state to the Serial Monitor
+  Serial.print("Tilt Sensor State: ");
+  Serial.println(tiltState);  // This will print 1 when tilted in the sensor's active direction, and 0 when not tilted
+
+  if (tiltState == HIGH) {
+    // If the tilt sensor is activated, turn on the buzzer at a fixed frequency
+    tone(buzzerPin, 1000);  // 1000 Hz frequency
+    delay(500);
+
+    // Display the message on the LCD
+    lcd.clear();  // Clear the LCD screen
+    lcd.setCursor(0, 0);  // Set the cursor to the first column, first row
+    lcd.print("Tilt detected!");  // Print the message
+  } else {
+    // If the tilt sensor is not activated, turn off the buzzer
+    noTone(buzzerPin);
+    lcd.clear();
+
+    // Wait for a short period of time before reading again
+    delay(100);
+  }
+}
