@@ -3,11 +3,11 @@
 #include "ThingSpeak.h"
 #include <LiquidCrystal_I2C.h>
 
-const char* ssid     = "EnclaveApts-3820-101A"; // WiFi network name
-const char* password = "pant140sleepy"; // WiFi password
+const char* ssid     = "SSID"; // WiFi network name
+const char* password = "PASSWORD"; // WiFi password
 
-unsigned long myChannelNumber = 2334869;  // ThingSpeak channel number
-const char* myApiKey = "QHRW5K3SCNC5YZDZ";  // ThingSpeak channel write API key
+unsigned long myChannelNumber = 1111111;  // ThingSpeak channel number
+const char* myApiKey = "WRITEKEY";  // ThingSpeak channel write API key
 
 WiFiClient client;
 
